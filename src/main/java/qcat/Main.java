@@ -3,7 +3,6 @@ package qcat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -43,19 +42,17 @@ public class Main {
 		try {
 			user = getUser();
 		} catch (Exception e) {
-			System.out
-					.println("Something went wrong reading user.txt. Please check it.\n"
+			System.out.println("Something went wrong reading user.txt. Please check it.\n"
 							+ "Here is the stack trace if that helps you work out what went wrong:\n");
 			e.printStackTrace();
 			return;
 		}
 		System.out.println("Successfully read user.txt");
-		System.out
-				.println("Welcome, "
+		System.out.println("Welcome, "
 						+ user.getUsername()
 						+ ", to Temp Notifier.\n"
-						+ "To quit please go into Task Manager and close the Java program that's running\n"
-						+ "(see the thread on GBAtemp, or the readme in the repo, for details)");
+						+ "To quit just close the command window. To make doubly sure,"
+						+ " go to Task Manager and close any Java apps that are running.");
 
 		System.out.println("Reading in cookie if there is one...");
 		File file = new File("cookies.file");
@@ -86,15 +83,11 @@ public class Main {
 		}
 
 		try {
-			messagePage = webClient
-					.getPage("https://gbatemp.net/conversations/");
-		} catch (com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException e) // have
-																					// to
-																					// log
-																					// in
+			messagePage = webClient.getPage("https://gbatemp.net/conversations/");
+		} catch (com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException e) // have to log in
 		{
-			System.out
-					.println("Failed to open 'https://gbatemp.net/conversations/', so logging in...");
+			System.out.println("Failed to open 'https://gbatemp.net/conversations/', "
+					+ "so logging in...");
 			HtmlPage page = webClient.getPage("https://www.gbatemp.net/login");
 			HtmlForm form = page.getHtmlElementById("pageLogin");
 			HtmlSubmitInput button = form.getInputByValue("Log in");
@@ -115,49 +108,41 @@ public class Main {
 			out.writeObject(temp);
 			out.close();
 
-			messagePage = webClient
-					.getPage("https://gbatemp.net/conversations/");
+			messagePage = webClient.getPage("https://gbatemp.net/conversations/");
 		}
 
 		System.out.println("Now checking for messages...");
 
 		while (true) {
-			List<HtmlElement> messages = messagePage
-					.getByXPath("//li[contains(@id,'conversation')]");
+			List<HtmlElement> messages = messagePage.getByXPath("//li[contains(@id,'conversation')]");
 			if (latestMessage == null) {
 				latestMessage = messages.get(0);
-				messagePage = webClient
-						.getPage("https://gbatemp.net/conversations/");
+				messagePage = webClient.getPage("https://gbatemp.net/conversations/");
 				continue;
 			}
 			if (!latestMessage.getTextContent().trim()
 					.equals(messages.get(0).getTextContent().trim())) {
-				HtmlAnchor a = messages.get(0).getFirstByXPath(
-						"//dl[@class='lastPostInfo']//a");
+				HtmlAnchor a = messages.get(0).getFirstByXPath("//dl[@class='lastPostInfo']//a");
 				String author = a.getTextContent().trim();
 
-				a = messages
-						.get(0)
-						.getFirstByXPath(
-								"//div[@class='listBlock main']//div[@class='titleText']//h3//a");
+				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
+						+ "//div[@class='titleText']//h3//a");
 				String subject = a.getTextContent().trim();
 
-				a = messages
-						.get(0)
-						.getFirstByXPath(
-								"//div[@class='listBlock main']//div[@class='titleText']//div[@class='secondRow']//a[@class='faint']");
+				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
+						+ "//div[@class='titleText']//div[@class='secondRow']"
+						+ "//a[@class='faint']");
 				String link = a.getHrefAttribute();
 
 				String m = "New message from " + author + "\nSubject: "
 						+ subject + "\nhttps://gbatemp.net/" + link;
 				String encodedUrl = URLEncoder.encode(m, "UTF-8");
-				sendMessage(encodedUrl, user.getApiKey(), user.getPhone());
+				if(!author.equals(user.getUsername())) sendMessage(encodedUrl, user.getApiKey(), user.getPhone());
 				latestMessage = messages.get(0);
 			}
 
 			TimeUnit.SECONDS.sleep(10);
-			messagePage = webClient
-					.getPage("https://gbatemp.net/conversations/");
+			messagePage = webClient.getPage("https://gbatemp.net/conversations/");
 		}
 
 	}
@@ -186,7 +171,7 @@ public class Main {
 			throws Exception {
 
 		String url = "https://platform.clickatell.com/messages/http/send?apiKey="
-				+ apiKey + "==&to=" + phone + "&content=" + message;
+				+ apiKey + "&to=" + phone + "&content=" + message;
 
 		URL obj = new URL(url);
 		HttpURLConnection con = (HttpURLConnection) obj.openConnection();
