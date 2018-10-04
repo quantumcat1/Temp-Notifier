@@ -3,6 +3,7 @@ package qcat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
@@ -36,6 +37,7 @@ public class Main {
 	private static HtmlElement latestMessage = null;
 	private static User user;
 	private static HtmlPage messagePage = null;
+	private static WebClient webClient= null;
 
 	public static void main(String[] args) throws Exception {
 		System.out.println("Reading user.txt...");
@@ -54,7 +56,47 @@ public class Main {
 						+ "To quit just close the command window. To make doubly sure,"
 						+ " go to Task Manager and close any Java apps that are running.");
 
-		System.out.println("Reading in cookie if there is one...");
+		//System.out.println("Reading in cookie if there is one...");
+		
+
+		while (true) {
+			initialiseClient();
+			List<HtmlElement> messages = messagePage.getByXPath("//li[contains(@id,'conversation')]");
+			if (latestMessage == null) {
+				latestMessage = messages.get(0);
+				messagePage = webClient.getPage("https://gbatemp.net/conversations/");
+				continue;
+			}
+			if (!latestMessage.getTextContent().trim()
+					.equals(messages.get(0).getTextContent().trim())) {
+				HtmlAnchor a = messages.get(0).getFirstByXPath("//dl[@class='lastPostInfo']//a");
+				String author = a.getTextContent().trim();
+
+				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
+						+ "//div[@class='titleText']//h3//a");
+				String subject = a.getTextContent().trim();
+
+				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
+						+ "//div[@class='titleText']//div[@class='secondRow']"
+						+ "//a[@class='faint']");
+				String link = a.getHrefAttribute();
+
+				String m = "New message from " + author + "\nSubject: "
+						+ subject + "\nhttps://gbatemp.net/" + link;
+				String encodedUrl = URLEncoder.encode(m, "UTF-8");
+				if(!author.equals(user.getUsername())) sendMessage(encodedUrl, user.getApiKey(), user.getPhone());
+				latestMessage = messages.get(0);
+			}
+
+			webClient.close();
+			TimeUnit.SECONDS.sleep(10);
+			
+		}
+
+	}
+
+	private static void initialiseClient() throws FileNotFoundException, IOException {
+		
 		File file = new File("cookies.file");
 		Set<Cookie> cookies = null;
 
@@ -73,7 +115,10 @@ public class Main {
 			}
 		}
 
-		WebClient webClient = initialiseClient();
+		webClient = new WebClient(BrowserVersion.CHROME);
+		webClient.getOptions().setThrowExceptionOnScriptError(false);
+		webClient.getOptions().setCssEnabled(false);
+		webClient.getOptions().setJavaScriptEnabled(false);
 
 		if (cookies != null && cookies.size() > 0) {
 			Iterator<Cookie> i = cookies.iterator();
@@ -110,49 +155,6 @@ public class Main {
 
 			messagePage = webClient.getPage("https://gbatemp.net/conversations/");
 		}
-
-		System.out.println("Now checking for messages...");
-
-		while (true) {
-			List<HtmlElement> messages = messagePage.getByXPath("//li[contains(@id,'conversation')]");
-			if (latestMessage == null) {
-				latestMessage = messages.get(0);
-				messagePage = webClient.getPage("https://gbatemp.net/conversations/");
-				continue;
-			}
-			if (!latestMessage.getTextContent().trim()
-					.equals(messages.get(0).getTextContent().trim())) {
-				HtmlAnchor a = messages.get(0).getFirstByXPath("//dl[@class='lastPostInfo']//a");
-				String author = a.getTextContent().trim();
-
-				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
-						+ "//div[@class='titleText']//h3//a");
-				String subject = a.getTextContent().trim();
-
-				a = messages.get(0).getFirstByXPath("//div[@class='listBlock main']"
-						+ "//div[@class='titleText']//div[@class='secondRow']"
-						+ "//a[@class='faint']");
-				String link = a.getHrefAttribute();
-
-				String m = "New message from " + author + "\nSubject: "
-						+ subject + "\nhttps://gbatemp.net/" + link;
-				String encodedUrl = URLEncoder.encode(m, "UTF-8");
-				if(!author.equals(user.getUsername())) sendMessage(encodedUrl, user.getApiKey(), user.getPhone());
-				latestMessage = messages.get(0);
-			}
-
-			TimeUnit.SECONDS.sleep(10);
-			messagePage = webClient.getPage("https://gbatemp.net/conversations/");
-		}
-
-	}
-
-	private static WebClient initialiseClient() {
-		WebClient webClient = new WebClient(BrowserVersion.CHROME);
-		webClient.getOptions().setThrowExceptionOnScriptError(false);
-		webClient.getOptions().setCssEnabled(false);
-		webClient.getOptions().setJavaScriptEnabled(false);
-		return webClient;
 	}
 
 	private static User getUser() throws IOException {
@@ -195,6 +197,7 @@ public class Main {
 			response.append(inputLine);
 		}
 		in.close();
+		con.disconnect();
 
 		// print result
 		System.out.println(response.toString());
